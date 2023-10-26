@@ -108,18 +108,21 @@ struct server::impl {
 
 RPCLIB_CREATE_LOG_CHANNEL(server)
 
-server::server(uint16_t port)
+server::server(uint16_t port, std::function<void()> init_func)
     : pimpl(new server::impl(this, port)),
-      disp_(std::make_shared<dispatcher>()) {
+      disp_(std::make_shared<dispatcher>()),
+      init_func_([](){}) {
     LOG_INFO("Created server on localhost:{}", port);
     pimpl->start_accept();
 }
 
 server::server(server &&other) noexcept { *this = std::move(other); }
 
-server::server(std::string const &address, uint16_t port)
+server::server(std::string const &address, uint16_t port,
+               std::function<void()> init_func)
     : pimpl(new server::impl(this, address, port)),
-      disp_(std::make_shared<dispatcher>()) {
+      disp_(std::make_shared<dispatcher>()),
+      init_func_(init_func) {
     LOG_INFO("Created server on address {}:{}", address, port);
     pimpl->start_accept();
 }
@@ -136,6 +139,7 @@ server &server::operator=(server &&other) {
         other.pimpl = nullptr;
         disp_ = std::move(other.disp_);
         other.disp_ = nullptr;
+        init_func_ = std::move(other.init_func_);
     }
     return *this;
 }
@@ -144,11 +148,14 @@ void server::suppress_exceptions(bool suppress) {
     pimpl->suppress_exceptions_ = suppress;
 }
 
-void server::run() { pimpl->io_.run(); }
+void server::run() {
+    pimpl->io_.run();
+}
 
 void server::async_run(std::size_t worker_threads) {
     pimpl->loop_workers_.create_threads(worker_threads, [this]() {
         name_thread("server");
+        init_func_();
         LOG_INFO("Starting");
         pimpl->io_.run();
         LOG_INFO("Exiting");

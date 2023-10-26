@@ -31,7 +31,9 @@ public:
     //! specified port.
     //!
     //! \param port The port number to listen on.
-    explicit server(uint16_t port);
+    //! \param init_func A function to be called on each IO thread before
+    //! starting the server. This function is only called when using async_run.
+    explicit server(uint16_t port, std::function<void()> init_func = []{});
 
     //! \brief Move constructor. This is implemented by calling the
     //! move assignment operator.
@@ -45,7 +47,10 @@ public:
     //! \param address The address to bind to. This only works if oee of your
     //! network adapaters control the given address.
     //! \param port The port number to listen on.
-    server(std::string const &address, uint16_t port);
+    //! \param init_func A function to be called on each IO thread before
+    //! starting the server. This function is only called when using async_run.
+    server(std::string const &address, uint16_t port, 
+           std::function<void()> init_func = []{});
 
     //! \brief Destructor.
     //!
@@ -78,6 +83,16 @@ public:
     //!
     //! \param worker_threads The number of worker threads to start.
     void async_run(std::size_t worker_threads = 1);
+
+    //! \brief Set the worker thread initialization function.
+    //!
+    //! This function is called on each worker thread before starting the
+    //! server. This is useful for setting up thread-local data.
+    //!
+    //! \param init_func The initialization function.
+    void set_worker_init_func(std::function<void()>&& init_func) {
+        init_func_ = std::move(init_func);
+    }
 
     //! \brief Binds a functor to a name so it becomes callable via RPC.
     //!
@@ -135,6 +150,7 @@ public:
 private:
 	RPCLIB_DECLARE_PIMPL()
     std::shared_ptr<detail::dispatcher> disp_;
+    std::function<void()> init_func_;
 };
 
 } /* rpc */
